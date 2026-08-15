@@ -30,7 +30,12 @@ export class GitService {
     await execFileAsync('git', ['init', '--bare'], { cwd: repoPath });
   }
 
-  static async commitFiles(id: string, files: GitFile[], message: string = 'Update snippet') {
+  static async commitFiles(
+    id: string,
+    files: GitFile[],
+    message: string = 'Update snippet',
+    author: { name: string; email: string } = { name: 'Anonymous', email: 'anonymous@aide.local' }
+  ) {
     const repoPath = this.getRepoPath(id);
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), `snippet-${id}-`));
 
@@ -49,20 +54,29 @@ export class GitService {
 
       // Force index to exactly match tempDir (handles deleted files too)
       await execFileAsync('git', ['--work-tree', tempDir, '--git-dir', repoPath, 'add', '-A']);
-      
-      const { stdout: status } = await execFileAsync('git', ['--work-tree', tempDir, '--git-dir', repoPath, 'status', '--porcelain']);
+
+      const { stdout: status } = await execFileAsync('git', [
+        '--work-tree',
+        tempDir,
+        '--git-dir',
+        repoPath,
+        'status',
+        '--porcelain',
+      ]);
       if (status.trim()) {
-        await execFileAsync(
-          'git',
-          [
-            '--work-tree', tempDir,
-            '--git-dir', repoPath,
-            '-c', 'user.name=AIDE',
-            '-c', 'user.email=bot@aide.local',
-            'commit',
-            '-m', message
-          ]
-        );
+        await execFileAsync('git', [
+          '--work-tree',
+          tempDir,
+          '--git-dir',
+          repoPath,
+          '-c',
+          `user.name=${author.name}`,
+          '-c',
+          `user.email=${author.email}`,
+          'commit',
+          '-m',
+          message,
+        ]);
       }
     } finally {
       await fs.rm(tempDir, { recursive: true, force: true });
@@ -72,35 +86,43 @@ export class GitService {
   static async getFiles(id: string, commitHash: string = 'HEAD'): Promise<GitFile[]> {
     const repoPath = this.getRepoPath(id);
     try {
-      const { stdout: tree } = await execFileAsync('git', ['ls-tree', '-r', '--name-only', commitHash], { cwd: repoPath });
+      const { stdout: tree } = await execFileAsync(
+        'git',
+        ['ls-tree', '-r', '--name-only', commitHash],
+        { cwd: repoPath }
+      );
       const filenames = tree.trim().split('\n').filter(Boolean);
-      
+
       const files: GitFile[] = [];
       for (const name of filenames) {
-        const { stdout: content } = await execFileAsync('git', ['show', `${commitHash}:${name}`], { cwd: repoPath });
+        const { stdout: content } = await execFileAsync('git', ['show', `${commitHash}:${name}`], {
+          cwd: repoPath,
+        });
         files.push({ name, content });
       }
       return files;
-    } catch (e) {
+    } catch {
       return [];
     }
   }
 
   static async getHistory(id: string): Promise<GitCommit[]> {
     const repoPath = this.getRepoPath(id);
-    const delim = '<--AIDE-DELIM-->';
     try {
       const { stdout: log } = await execFileAsync(
         'git',
-        [`log`, `--pretty=format:%H${delim}%s${delim}%aI${delim}%an`],
+        [`log`, `-z`, `--pretty=format:%H%x1F%s%x1F%aI%x1F%an`],
         { cwd: repoPath }
       );
-      
-      return log.trim().split('\n').filter(Boolean).map(line => {
-        const [hash, message, date, author] = line.split(delim);
-        return { hash, message, date, author };
-      });
-    } catch (e) {
+
+      return log
+        .split('\0')
+        .filter(Boolean)
+        .map((commitStr) => {
+          const [hash, message, date, author] = commitStr.split('\x1F');
+          return { hash, message, date, author };
+        });
+    } catch {
       return [];
     }
   }

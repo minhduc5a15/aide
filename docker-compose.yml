@@ -1,33 +1,15 @@
 version: '3.8'
 
 services:
-  db:
-    image: postgres:15-alpine
-    container_name: aide-postgres
-    restart: always
-    environment:
-      POSTGRES_USER: snippetuser
-      POSTGRES_PASSWORD: snippetpass
-      POSTGRES_DB: snippetbox
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
   app:
     build: .
     container_name: aide-app
     restart: always
     ports:
-      - "3000:3000"
-    environment:
-      - DATABASE_URL=postgresql://snippetuser:snippetpass@db:5432/snippetbox?schema=public
-      - NEXTAUTH_URL=http://localhost:3000
-      - NEXTAUTH_SECRET=u0fF7hOVMVF3FuoFhhMSdt7S2WG/4YjKpCZLLpumnOU=
+      - '3000:3000'
+    env_file: .env
     volumes:
-      - ./storage:/app/storage
-    depends_on:
-      - db
+      - aide_storage:/app/storage
 
 volumes:
-  postgres_data:
+  aide_storage:

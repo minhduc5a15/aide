@@ -31,8 +31,9 @@ WORKDIR /app
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# Install git since it is required by GitService
+# Install git and prisma for DB migrations
 RUN apk add --no-cache git
+RUN npm install -g prisma
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
@@ -49,6 +50,13 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
+# Copy the entrypoint script
+COPY --chown=nextjs:nodejs docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
+# Create storage directory with correct permissions before switching user
+RUN mkdir storage && chown nextjs:nodejs storage
+
 USER nextjs
 
 EXPOSE 3000
@@ -56,11 +64,4 @@ EXPOSE 3000
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-# Note: We run prisma migrate deploy here so that the DB is ready before the server starts
-# Since the container runs as nextjs user, we just start the node server. We will do DB migration via a shell wrapper or docker-compose entrypoint.
-# For simplicity, we can do it in the command. But `prisma` requires `npx` which requires full node_modules if we use Prisma CLI.
-# The standalone output does not contain `npx prisma`. 
-# To handle migrations gracefully without adding full node_modules to runner:
-# We can include `npx prisma migrate deploy` in docker-compose.yml as a separate init container, or we use `package.json` in runner.
-# Let's just start the server here and handle migration via docker-compose.
-CMD ["node", "server.js"]
+ENTRYPOINT ["./docker-entrypoint.sh"]
