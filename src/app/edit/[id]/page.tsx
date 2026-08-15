@@ -265,7 +265,7 @@ export default function EditSnippet() {
           {/* Files List */}
           {files.map((file, idx) => {
             const extension = file.name.includes('.') ? file.name.split('.').pop() || '' : '';
-            const lineCount = file.content.split('\\n').length;
+            const lineCount = file.content.split('\n').length;
             const charCount = file.content.length;
             const isUntouchedPlaceholder = file.isUntouched && file.name === 'main.cpp';
 

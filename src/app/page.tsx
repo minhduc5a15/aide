@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Editor, { Monaco } from '@monaco-editor/react';
@@ -247,7 +247,7 @@ export default function Home() {
           {/* Files List */}
           {files.map((file, idx) => {
             const extension = file.name.includes('.') ? file.name.split('.').pop() || '' : '';
-            const lineCount = file.content.split('\\n').length;
+            const lineCount = file.content.split('\n').length;
             const charCount = file.content.length;
             const isUntouchedPlaceholder = file.isUntouched && file.name === 'main.cpp';
 
