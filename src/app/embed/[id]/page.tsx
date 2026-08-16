@@ -58,7 +58,7 @@ export default function EmbedView() {
           )}
         </div>
         <a
-          href={`/${id}`}
+          href={`/${(data as { user?: { name?: string } })?.user?.name || 'guest'}/${id}`}
           target="_blank"
           className="text-xs font-semibold text-blue-400 hover:text-blue-300"
         >

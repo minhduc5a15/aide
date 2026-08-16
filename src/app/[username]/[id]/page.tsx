@@ -35,6 +35,7 @@ export default function SnippetView() {
   const [comment, setComment] = useState('');
   const [author, setAuthor] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
   // Feedback states
   const [embedCopied, setEmbedCopied] = useState(false);
@@ -113,7 +114,8 @@ export default function SnippetView() {
     });
     const json = await res.json();
     if (json.id) {
-      router.push(`/${json.id}`);
+      const currentUsername = session?.user?.name || 'guest';
+      router.push(`/${currentUsername}/${json.id}`);
     }
   };
 
@@ -165,13 +167,15 @@ export default function SnippetView() {
   };
 
   const submitComment = async () => {
-    if (!comment.trim()) return;
+    if (!comment.trim() || isSubmittingComment) return;
+    setIsSubmittingComment(true);
     await fetch(`/api/snippets/${id}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: comment, guestName: author }),
     });
     setComment('');
+    setIsSubmittingComment(false);
     fetchSnippet();
   };
 
@@ -206,6 +210,7 @@ export default function SnippetView() {
     user?: { name?: string; image?: string };
     createdAt?: string | Date;
     forkedFromId?: string;
+    forkedFromUsername?: string | null;
     isSecret?: boolean;
     _count?: { stars?: number; comments?: number };
     comments?: {
@@ -255,7 +260,7 @@ export default function SnippetView() {
                   {' '}
                   • Cloned from{' '}
                   <Link
-                    href={`/${String(d.forkedFromId)}`}
+                    href={`/${d.forkedFromUsername || 'guest'}/${String(d.forkedFromId)}`}
                     className="text-zinc-400 hover:text-zinc-300 hover:underline"
                   >
                     {String(d.forkedFromId)}
@@ -306,11 +311,7 @@ export default function SnippetView() {
             onClick={handleEmbed}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-md text-xs font-medium text-zinc-300 transition-colors"
           >
-            {embedCopied ? (
-              <Check size={14} className="text-green-400" />
-            ) : (
-              <Code2 size={14} className="hidden" />
-            )}
+            {embedCopied ? <Check size={14} className="text-green-400" /> : <Code2 size={14} />}
             {embedCopied ? 'Copied' : 'Embed'}
           </button>
           <button
@@ -509,10 +510,10 @@ export default function SnippetView() {
               {!session && <span className="text-xs text-zinc-500">Posting as Guest</span>}
               <button
                 onClick={submitComment}
-                disabled={!comment.trim()}
-                className="px-5 py-2 bg-zinc-100 hover:bg-white disabled:opacity-50 text-zinc-950 rounded-md text-sm font-medium transition-colors shadow-sm"
+                disabled={!comment.trim() || isSubmittingComment}
+                className="px-5 py-2 bg-zinc-100 hover:bg-white disabled:opacity-50 text-zinc-950 rounded-md text-sm font-medium transition-colors shadow-sm flex items-center gap-2"
               >
-                Comment
+                {isSubmittingComment ? 'Sending...' : 'Comment'}
               </button>
             </div>
           </div>

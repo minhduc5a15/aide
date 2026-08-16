@@ -1,9 +1,11 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider   = "postgresql"
+  extensions = [pg_trgm]
 }
 
 model User {
@@ -23,16 +25,19 @@ model User {
 model Snippet {
   id           String    @id
   description  String?
-  filename     String?
-  preview      String?
   isSecret     Boolean   @default(false)
   userId       String?
   user         User?     @relation(fields: [userId], references: [id])
   forkedFromId String?
+  forkedFrom   Snippet?  @relation("Forks", fields: [forkedFromId], references: [id])
+  forks        Snippet[] @relation("Forks")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   comments     Comment[]
   stars        Star[]
+  files        File[]
+
+  @@index([description(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model Comment {
@@ -55,4 +60,14 @@ model Star {
   snippet   Snippet  @relation(fields: [snippetId], references: [id], onDelete: Cascade)
 
   @@unique([userId, snippetId])
+}
+
+model File {
+  id        String  @id @default(cuid())
+  snippetId String
+  name      String
+  content   String
+  snippet   Snippet @relation(fields: [snippetId], references: [id], onDelete: Cascade)
+
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)
 }

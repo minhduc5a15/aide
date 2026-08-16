@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { GitService, GitFile } from '@/lib/git';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { validateSnippetFiles } from '@/lib/validation';
-import fs from 'fs/promises';
 import crypto from 'crypto';
 
 const getGravatar = (email?: string) => {
@@ -20,29 +18,34 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       where: { id },
       include: {
         user: { select: { name: true, email: true } },
+        stars: { select: { userId: true } },
         comments: {
-          orderBy: { createdAt: 'asc' },
+          orderBy: { createdAt: 'desc' },
           include: { user: { select: { name: true, email: true } } },
         },
-        _count: {
-          select: { stars: true },
+        files: {
+          select: { name: true, content: true },
         },
-        stars: {
-          select: { userId: true },
+        _count: {
+          select: { stars: true, comments: true },
         },
       },
     });
+
+    let forkedFromUsername: string | null = null;
+    if (snippet?.forkedFromId) {
+      const original = await prisma.snippet.findUnique({
+        where: { id: snippet.forkedFromId },
+        select: { user: { select: { name: true } } }
+      });
+      forkedFromUsername = original?.user?.name || null;
+    }
 
     if (!snippet) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    if (snippet.isSecret && snippet.userId) {
-      const session = await getServerSession(authOptions);
-      if (!session || (session.user as { id: string }).id !== snippet.userId) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
-    }
+    // Secret snippets are accessible to anyone with the link, no authorization required for GET.
 
     let isStarred = false;
     const session = await getServerSession(authOptions);
@@ -50,9 +53,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       const userId = (session.user as { id: string }).id;
       isStarred = snippet.stars.some((star) => star.userId === userId);
     }
-
-    const files = await GitService.getFiles(id);
-    const history = await GitService.getHistory(id);
 
     return NextResponse.json({
       ...snippet,
@@ -63,10 +63,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         ...c,
         user: c.user ? { name: c.user.name, image: getGravatar(c.user.email) } : null,
       })),
-      files,
-      history,
+      files: snippet.files,
       _count: snippet._count,
       isStarred,
+      forkedFromUsername,
     });
   } catch (error: unknown) {
     return NextResponse.json(
@@ -83,13 +83,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (!session || !session.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const author = {
-      name: session.user.name || 'Unknown',
-      email: session.user.email || 'unknown@aide.local',
-    };
 
     const body = await req.json();
-    const { files, message, description } = body;
+    const { files, description } = body;
 
     if (description && (typeof description !== 'string' || description.length > 1000)) {
       return NextResponse.json(
@@ -113,21 +109,22 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    await GitService.commitFiles(id, files as GitFile[], message || 'Update snippet', author);
-
-    const previewFile = Array.isArray(files) && files.length > 0 ? files[0] : null;
-    const filename = previewFile?.name || null;
-    const preview = previewFile?.content ? previewFile.content.substring(0, 500) : null;
-
-    await prisma.snippet.update({
-      where: { id },
-      data: {
-        updatedAt: new Date(),
-        description: description ?? snippet.description,
-        filename,
-        preview,
-      },
-    });
+    // Delete existing files and create new ones
+    await prisma.$transaction([
+      prisma.file.deleteMany({ where: { snippetId: id } }),
+      prisma.snippet.update({
+        where: { id },
+        data: {
+          description,
+          files: {
+            create: files.map((f: { name: string; content: string }) => ({
+              name: f.name,
+              content: f.content,
+            })),
+          },
+        },
+      }),
+    ]);
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
@@ -149,28 +146,20 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     const snippet = await prisma.snippet.findUnique({
       where: { id },
+      select: { userId: true },
     });
 
     if (!snippet) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Snippet not found' }, { status: 404 });
     }
 
     if (snippet.userId !== (session.user as { id: string }).id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Delete from DB (cascades comments and stars)
     await prisma.snippet.delete({
       where: { id },
     });
-
-    // Delete Git repo
-    try {
-      const repoPath = GitService.getRepoPath(id);
-      await fs.rm(repoPath, { recursive: true, force: true });
-    } catch (fsError) {
-      console.error('Failed to delete git repo:', fsError);
-    }
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

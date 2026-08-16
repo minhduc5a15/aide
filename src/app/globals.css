@@ -27,3 +27,12 @@ body {
     text-wrap: balance;
   }
 }
+
+/* Fix Monaco Editor Find Widget tooltip flickering issue */
+.monaco-hover,
+.monaco-tooltip,
+.monaco-editor-hover,
+.monaco-editor .tooltip,
+.workbench-hover-container {
+  display: none !important;
+}

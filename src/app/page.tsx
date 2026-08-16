@@ -15,9 +15,7 @@ import {
   ChevronRight,
   Home as HomeIcon,
   Zap,
-  Keyboard,
   Check,
-  Command,
   User,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -101,6 +99,16 @@ export default function Home() {
   // Store editor references for format actions
   const editorRefs = useRef<{ [key: number]: unknown }>({});
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  
+  // Textarea ref for auto-resizing
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [description]);
 
   if (status === 'loading') {
     return (
@@ -124,7 +132,8 @@ export default function Home() {
       });
       const data = await res.json();
       if (data.id) {
-        router.push(`/${data.id}`);
+        const username = session?.user?.name || 'guest';
+        router.push(`/${username}/${data.id}`);
       } else {
         toast.error(data.error || 'Failed to save');
         setSaving(false);
@@ -231,16 +240,12 @@ export default function Home() {
           <div className="flex items-start gap-3 bg-zinc-900/40 p-3 rounded-lg border border-zinc-800/80 shadow-sm focus-within:border-zinc-600 focus-within:bg-zinc-900/80 transition-colors">
             <FileText className="text-zinc-500 mt-1" size={18} />
             <textarea
+              ref={textareaRef}
               placeholder="Snippet description (optional)"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={1}
               className="w-full bg-transparent text-zinc-100 focus:outline-none placeholder-zinc-600 text-sm resize-none mt-1"
-              onInput={(e) => {
-                const target = e.target as HTMLTextAreaElement;
-                target.style.height = 'auto';
-                target.style.height = target.scrollHeight + 'px';
-              }}
             />
           </div>
 
@@ -436,53 +441,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-5 shadow-sm">
-            <div className="flex items-center gap-2 text-zinc-100 font-semibold mb-4">
-              <Keyboard size={18} className="text-indigo-400" />
-              Editor Shortcuts
-            </div>
-            <div className="flex flex-col gap-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Format document</span>
-                <div className="flex items-center gap-1 font-mono text-xs">
-                  <kbd className="px-1.5 py-1 bg-zinc-800 rounded border border-zinc-700 text-zinc-300">
-                    Shift
-                  </kbd>
-                  <kbd className="px-1.5 py-1 bg-zinc-800 rounded border border-zinc-700 text-zinc-300">
-                    Alt
-                  </kbd>
-                  <kbd className="px-1.5 py-1 bg-zinc-800 rounded border border-zinc-700 text-zinc-300">
-                    F
-                  </kbd>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Command Palette</span>
-                <div className="flex items-center gap-1 font-mono text-xs">
-                  <kbd className="px-1.5 py-1 bg-zinc-800 rounded border border-zinc-700 text-zinc-300">
-                    <Command size={10} className="inline" />
-                  </kbd>
-                  <kbd className="px-1.5 py-1 bg-zinc-800 rounded border border-zinc-700 text-zinc-300">
-                    Shift
-                  </kbd>
-                  <kbd className="px-1.5 py-1 bg-zinc-800 rounded border border-zinc-700 text-zinc-300">
-                    P
-                  </kbd>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Find & Replace</span>
-                <div className="flex items-center gap-1 font-mono text-xs">
-                  <kbd className="px-1.5 py-1 bg-zinc-800 rounded border border-zinc-700 text-zinc-300">
-                    <Command size={10} className="inline" />
-                  </kbd>
-                  <kbd className="px-1.5 py-1 bg-zinc-800 rounded border border-zinc-700 text-zinc-300">
-                    F
-                  </kbd>
-                </div>
-              </div>
-            </div>
-          </div>
+
         </div>
       </div>
     </main>

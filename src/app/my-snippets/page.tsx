@@ -30,8 +30,7 @@ export default function MySnippets() {
   const [snippets, setSnippets] = useState<
     {
       id: string;
-      filename: string;
-      preview: string;
+      files?: { name: string; content: string }[];
       filesCount: number;
       forksCount: number;
       createdAt: string;
@@ -98,7 +97,7 @@ export default function MySnippets() {
   const processedSnippets = useMemo(() => {
     const result = snippets.filter(
       (s) =>
-        (s.filename || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (s.files?.[0]?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (s.description || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
 
@@ -339,10 +338,10 @@ export default function MySnippets() {
                     <div className="px-5 py-4 border-b border-zinc-800/80 bg-zinc-900">
                       <div className="flex justify-between items-start mb-2">
                         <Link
-                          href={`/${profile?.name || 'a'}/${snippet.id}`}
+                          href={`/${profile?.name || 'guest'}/${snippet.id}`}
                           className="text-indigo-400 font-semibold text-lg hover:underline truncate mr-2"
                         >
-                          {snippet.filename || snippet.id}
+                          {snippet.files?.[0]?.name || snippet.id}
                         </Link>
                         {snippet.isSecret && (
                           <span className="flex items-center shrink-0 gap-1 px-2 py-0.5 rounded-full border border-zinc-700 text-[10px] font-medium text-zinc-400 bg-zinc-800 uppercase tracking-wider">
@@ -410,8 +409,8 @@ export default function MySnippets() {
                     {/* Short Preview */}
                     <div className="p-4 bg-zinc-950 text-xs text-zinc-300 font-mono whitespace-pre-wrap relative flex-1">
                       <div className="max-h-24 overflow-hidden">
-                        {snippet.preview
-                          ? snippet.preview.split('\n').slice(0, 5).join('\n')
+                        {snippet.files?.[0]?.content
+                          ? snippet.files[0].content.split('\n').slice(0, 5).join('\n')
                           : '// Empty file'}
                       </div>
                       <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-zinc-950 to-transparent pointer-events-none" />

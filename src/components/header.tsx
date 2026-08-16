@@ -1,12 +1,15 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, KeyboardEvent } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import { Code2, User } from 'lucide-react';
 import Image from 'next/image';
 
 export default function Header() {
   const { data: session } = useSession();
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -30,6 +33,12 @@ export default function Header() {
     signOut();
   };
 
+  const handleSearch = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && searchQuery.trim()) {
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
   return (
     <>
       <header className="flex items-center justify-between px-6 py-3 bg-zinc-950 border-b border-zinc-800 sticky top-0 z-40">
@@ -44,6 +53,9 @@ export default function Header() {
             <input
               type="text"
               placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearch}
               className="bg-zinc-900 border border-zinc-800 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-64 text-zinc-100 placeholder-zinc-500 transition-colors"
             />
           </div>

@@ -19,6 +19,6 @@ export default async function SnippetRedirect({
     notFound();
   }
 
-  const username = snippet.user?.name || 'a';
+  const username = snippet.user?.name || 'guest';
   redirect(`/${username}/${idOrUsername}`);
 }

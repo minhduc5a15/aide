@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { GitService } from '@/lib/git';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 
@@ -18,31 +17,21 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
       include: {
         _count: {
-          select: { comments: true },
+          select: { comments: true, forks: true, stars: true, files: true },
+        },
+        files: {
+          select: { name: true, content: true },
+          take: 1,
         },
       },
     });
 
-    const snippetsWithPreview = await Promise.all(
-      snippets.map(async (s) => {
-        let preview = '';
-        let filename = '';
-        let filesCount = 0;
-        let forksCount = 0;
-        try {
-          const files = await GitService.getFiles(s.id);
-          filesCount = files.length;
-          if (files.length > 0) {
-            filename = files[0].name;
-            preview = files[0].content.substring(0, 500);
-          }
-          forksCount = await prisma.snippet.count({ where: { forkedFromId: s.id } });
-        } catch {
-          /* ignore */
-        }
-        return { ...s, filename, preview, filesCount, forksCount, starsCount: 0 };
-      })
-    );
+    const snippetsWithPreview = snippets.map((s) => ({
+      ...s,
+      filesCount: s._count.files,
+      forksCount: s._count.forks,
+      starsCount: s._count.stars,
+    }));
 
     return NextResponse.json(snippetsWithPreview);
   } catch (error: unknown) {

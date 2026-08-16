@@ -1,7 +1,5 @@
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { GitService } from '@/lib/git';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 
 export async function GET(
   req: Request,
@@ -9,49 +7,44 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const url = new URL(req.url);
-    const fileName = url.searchParams.get('file');
 
     const snippet = await prisma.snippet.findUnique({
       where: { id },
-      include: { user: true },
+      include: { files: true },
     });
 
     if (!snippet) {
-      return new Response('Snippet not found', { status: 404 });
+      return new NextResponse('Not found', { status: 404 });
     }
 
-    if (snippet.isSecret && snippet.userId) {
-      const session = await getServerSession(authOptions);
-      if (!session || (session.user as { id: string }).id !== snippet.userId) {
-        return new Response('Forbidden', { status: 403 });
-      }
-    }
+    // Secret snippets are accessible via URL
 
-    const files = await GitService.getFiles(id);
-    if (!files || files.length === 0) {
-      return new Response('No files found', { status: 404 });
-    }
+    const { searchParams } = new URL(req.url);
+    const filename = searchParams.get('file');
 
-    let targetFile = files[0];
-    if (fileName) {
-      const found = files.find((f) => f.name === fileName);
-      if (found) {
-        targetFile = found;
+    let fileContent = '';
+    
+    if (filename) {
+      const file = snippet.files.find((f: { name: string; content: string }) => f.name === filename);
+      if (file) {
+        fileContent = file.content;
       } else {
-        return new Response('File not found', { status: 404 });
+        return new NextResponse('File not found', { status: 404 });
+      }
+    } else {
+      // Default to first file if no filename provided
+      if (snippet.files.length > 0) {
+        fileContent = snippet.files[0].content;
       }
     }
 
-    return new Response(targetFile.content, {
-      status: 200,
+    return new NextResponse(fileContent, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
-        'Cache-Control': 'public, max-age=3600, s-maxage=3600',
       },
     });
   } catch (error: unknown) {
     console.error('Error fetching raw snippet:', error);
-    return new Response('Internal Server Error', { status: 500 });
+    return new NextResponse('Internal Error', { status: 500 });
   }
 }
